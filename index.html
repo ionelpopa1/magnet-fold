@@ -101,6 +101,11 @@ details ul, details ol { margin: 6px 0 0; padding-left: 20px; display: flex; fle
 .rules label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
 .rules input { min-height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font: 16px var(--mono); color: var(--ink); background: var(--surface); }
 .magtable td, .magtable th { font-size: 14px; }
+.mine { background: var(--chip); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; font-size: 15px; }
+.mine b { font-family: var(--display); font-size: 17px; }
+.status + .status { margin-top: -8px; }
+.rules textarea { min-height: 70px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: 14px var(--mono); color: var(--ink); background: var(--surface); resize: vertical; }
+.rules .wide { grid-column: 1 / -1; }
 footer { font-size: 13px; color: var(--muted); }
 footer a { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -122,12 +127,16 @@ footer a { color: var(--accent); }
   </div>
 
   <div class="actions">
-    <label class="primary" for="photo">
+    <label class="primary" for="photo" id="photoBtn">
       <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 3 7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9Zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>
       Take or choose a photo
       <input id="photo" type="file" accept="image/*">
     </label>
-    <div class="examples" id="examples">Or try a fold from the 2022 article:</div>
+    <div class="mine" id="mineNote" hidden>
+      <span><b>Your fold is scored.</b> One photo per person: show your score to an organizer.</span>
+      <button class="ghost" id="showMine" type="button">Show my fold</button>
+    </div>
+    <div class="examples" id="examples">Or look at a fold from the 2022 article:</div>
   </div>
 
   <section class="panel" aria-live="polite">
@@ -136,6 +145,7 @@ footer a { color: var(--accent); }
       <div class="total" id="total">0<small>points</small></div>
     </div>
     <p class="status" id="status"></p>
+    <p class="status" id="status2"></p>
     <div class="canvas-box">
       <canvas id="view" aria-label="Photo with a score next to every magnet"></canvas>
       <div class="busy" id="busy" hidden>Scoring…</div>
@@ -145,19 +155,20 @@ footer a { color: var(--accent); }
       <span><i style="background:#c92a2a"></i>like charges</span>
       <span><b style="color:#c92a2a">✕</b> magnets too close</span>
       <span><i style="background:#1f6fb2"></i>where the water reaches</span>
+      <span><i style="background:#56606a;height:2px"></i>paper-clip links</span>
     </div>
     <div class="chips" id="chips"></div>
     <div class="fix">
       <span>Wrong color or missed magnet? Tap a magnet to change its color (after green it disappears). Tap empty board to add one.</span>
       <button class="link" id="undo" type="button" disabled>Undo tap</button>
     </div>
-    <form class="save" id="saveForm">
+    <form class="save" id="saveForm" data-org hidden>
       <input id="team" type="text" placeholder="Team or name" autocomplete="off" maxlength="40" aria-label="Team or name">
       <button class="ghost" type="submit">Add to leaderboard</button>
     </form>
   </section>
 
-  <section class="panel">
+  <section class="panel" data-org hidden>
     <div class="result-head">
       <h2>Leaderboard</h2>
       <span id="clearBox"><button class="link" id="clear" type="button">Clear all</button></span>
@@ -172,6 +183,7 @@ footer a { color: var(--accent); }
       <li>Right place (yellow or green hidden, any other color exposed): +1. Wrong place: −1. Partly exposed: in between.</li>
       <li>A red and a blue magnet within one link of each other make a salt bridge: +1 for each of the two.</li>
       <li>Two reds, or two blues, that close: −1 for each.</li>
+      <li>Magnets joined by the same paper clip never count for charges, good or bad. The chain put them next to each other, not you.</li>
       <li>Two magnets that almost touch (closer than half a link): −1 for each.</li>
     </ul>
     <p style="margin-top:8px">One link is the length of a stretched magnet plus paper clip. The program measures it from the size of the magnets in the photo, so it does not matter how close you hold the phone.</p>
@@ -192,8 +204,8 @@ footer a { color: var(--accent); }
     </ul>
   </details>
 
-  <details>
-    <summary>Scoring settings</summary>
+  <details data-org hidden>
+    <summary>Scoring settings (organizer)</summary>
     <div class="rules">
       <label for="minSep">Too close if nearer than (links)<input id="minSep" type="number" step="0.05" min="0" max="2"></label>
       <label for="contact">Salt bridge within (links)<input id="contact" type="number" step="0.05" min="0" max="3"></label>
@@ -201,8 +213,10 @@ footer a { color: var(--accent); }
       <label for="wBurial">Points for right place<input id="wBurial" type="number" step="0.25" min="0" max="5"></label>
       <label for="probe">Water drop radius (links)<input id="probe" type="number" step="0.05" min="0.1" max="2"></label>
       <label for="expected">Magnets in the chain<input id="expected" type="number" step="1" min="1" max="80"></label>
+      <label for="chains" class="wide">Chain sequences, one per line, first to last magnet (R red, B blue, P purple, Y yellow, G green). Used to find the paper-clip links; saved on this phone only.<textarea id="chains" spellcheck="false"></textarea></label>
     </div>
     <p style="margin-top:10px"><button class="link" id="resetRules" type="button">Reset to the article's settings</button></p>
+    <p><span id="resetMineBox"><button class="link" id="resetMine" type="button">Let this phone take a new photo</button></span></p>
   </details>
 
   <footer>Based on Popa &amp; Saitis, <a href="https://doi.org/10.1021/acs.jchemed.2c00231">J. Chem. Educ. 2022, 99, 3074-3082</a>. Photos stay on this device; nothing is uploaded.</footer>
@@ -217,6 +231,14 @@ let PRM = { ...DEF };
 const HYD = { Y: true, G: true };
 const CHG = { R: -1, B: 1 };
 const CYCLE = ["R", "B", "P", "Y", "G"];
+// Chains used at events (first to last magnet). Needed to trace paper-clip links.
+const CHAINS_BUILTIN = ["RPBYPRYBPRPYGYGBGYPB"];
+const isOrg = () => location.hash === "#organizer";
+function chains() {
+  let extra = [];
+  try { extra = JSON.parse(localStorage.getItem("mfs-chains") || "[]"); } catch { extra = []; }
+  return Array.from(new Set([...(isOrg() && extra.length ? extra : []), ...CHAINS_BUILTIN]));
+}
 const NAME = { R: "red", B: "blue", P: "purple", Y: "yellow", G: "green" };
 const SWATCH = { R: "#e9679a", B: "#1f6cc4", P: "#7a4ea6", Y: "#e4b100", G: "#12a393" };
 const WORK = 700;
@@ -436,6 +458,72 @@ function findStructure(src, W, H) {
   return { canvas: p.cv, mags };
 }
 
+// ---------------------------------------------------------------- chain tracing
+// Match the known color sequence to the magnets so we know which pairs share a paper clip.
+function grayOf(img) {
+  const { data, width: w, height: h } = img, g = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const Y = 0.212671 * LIN[data[4 * i]] + 0.71516 * LIN[data[4 * i + 1]] + 0.072169 * LIN[data[4 * i + 2]];
+    g[i] = (116 * fLab(Y) - 16) * 2.55;
+  }
+  return g;
+}
+
+function clipEvidence(g, w, h, bg, p, q, r) {
+  const dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d;
+  let n = 0, hits = 0;
+  for (let t = 1.1 * r; t < d - 1.1 * r; t += 1) {
+    n++; let mn = Infinity;
+    for (let o = -0.5 * r; o < 0.5 * r + 1; o += 1) {
+      const x = Math.round(p.x + ux * t - uy * o), y = Math.round(p.y + uy * t + ux * o);
+      if (x >= 0 && y >= 0 && x < w && y < h) mn = Math.min(mn, g[y * w + x]);
+    }
+    if (mn < Infinity && bg - mn > 18) hits++;
+  }
+  return n < 3 ? 1 : hits / n;
+}
+
+function traceChain(img, mags, seqs, budgetMs = 1500) {
+  const n = mags.length; if (n < 2) return null;
+  const codes = mags.map(m => m.code), comp = codes.slice().sort().join("");
+  const cands = seqs.filter(s => s.length === n && s.split("").sort().join("") === comp);
+  if (!cands.length) return null;
+  const g = grayOf(img), w = img.width, h = img.height, bg = median(g), r = mags[0].r;
+  const D = mags.map(a => mags.map(b => Math.hypot(a.x - b.x, a.y - b.y)));
+  const nn = D.map((row, i) => Math.min(...row.filter((_, j) => j !== i)));
+  const t0 = performance.now();
+  for (const reach of [2, 2.5, 3]) {
+    const dmax = reach * median(nn);
+    const E = D.map(row => row.map(() => 0));
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++)
+      if (D[i][j] < dmax) E[i][j] = E[j][i] = clipEvidence(g, w, h, bg, mags[i], mags[j], r);
+    let best = null, bestCost = Infinity, count = 0;
+    for (const seq of cands) for (const rev of [false, true]) {
+      const s = rev ? seq.split("").reverse().join("") : seq, used = new Uint8Array(n), path = [];
+      const dfs = () => {
+        if (count >= 200000 || performance.now() - t0 > budgetMs) return;
+        if (path.length === n) {
+          count++;
+          let c = 0; for (let k = 1; k < n; k++) c += -E[path[k - 1]][path[k]] + 0.3 * (D[path[k - 1]][path[k]] / dmax) ** 2;
+          if (c < bestCost) { bestCost = c; best = rev ? path.slice().reverse() : path.slice(); }
+          return;
+        }
+        const k = path.length, prev = path[k - 1];
+        for (let j = 0; j < n; j++) if (!used[j] && codes[j] === s[k] && D[prev][j] < dmax) { used[j] = 1; path.push(j); dfs(); path.pop(); used[j] = 0; }
+      };
+      for (let j = 0; j < n; j++) if (codes[j] === s[0]) { used[j] = 1; path.push(j); dfs(); path.pop(); used[j] = 0; }
+    }
+    if (best) return best;
+  }
+  return null;
+}
+
+function linkSet(order) {
+  const set = new Set();
+  if (order) for (let k = 1; k < order.length; k++) set.add(Math.min(order[k - 1], order[k]) + "-" + Math.max(order[k - 1], order[k]));
+  return set;
+}
+
 // ---------------------------------------------------------------- scoring
 function dt1d(f, n, d, v, z) {
   let k = 0; v[0] = 0; z[0] = -1e20; z[1] = 1e20;
@@ -487,8 +575,8 @@ function waterAccess(w, h, mags, rho, rWater) {
   return { expo, water };
 }
 
-function scoreFold(mags, w, h, prm = PRM) {
-  const n = mags.length;
+function scoreFold(mags, w, h, prm = PRM, order = null) {
+  const n = mags.length, linked = linkSet(order);
   if (!n) return { scores: [], water: new Uint8Array(w * h), sum: summarize([]) };
   const r = median(mags.map(m => m.r)), L = prm.clipRatio * r, rWater = prm.probe * L, rho = r + rWater;
   const { expo, water } = waterAccess(w, h, mags, rho, rWater);
@@ -500,7 +588,8 @@ function scoreFold(mags, w, h, prm = PRM) {
       if (j === i) continue;
       const d = Math.hypot(m.x - mags[j].x, m.y - mags[j].y);
       if (d < prm.minSep * L) part.clash.push(j);
-      if (CHG[m.code] && CHG[mags[j].code] && d < prm.contact * L) (CHG[m.code] * CHG[mags[j].code] < 0 ? part.salt : part.repel).push(j);
+      const joined = linked.has(Math.min(i, j) + "-" + Math.max(i, j));
+      if (!joined && CHG[m.code] && CHG[mags[j].code] && d < prm.contact * L) (CHG[m.code] * CHG[mags[j].code] < 0 ? part.salt : part.repel).push(j);
     }
     const total = prm.wBurial * burial + prm.wSalt * part.salt.length - prm.wRepel * part.repel.length - prm.wClash * part.clash.length;
     return { i, code: m.code, exposure: expo[i], burial, part, total };
@@ -523,14 +612,19 @@ function summarize(scores) {
 
 // ---------------------------------------------------------------- drawing
 const view = document.getElementById("view");
-let cur = null; // { name, canvas, mags, history, result }
+let cur = null; // { name, canvas, mags, order, history, isMine, fixes, when }
 
 function fmt(v) { return Math.abs(v) < 0.05 ? "0" : (v > 0 ? "+" : "−") + Math.abs(v).toFixed(1); }
+
+function imageDataOf(canvas) { return canvas.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height); }
+
+// Re-trace the paper-clip links whenever the magnets change.
+function retrace() { cur.order = cur.mags.length ? traceChain(imageDataOf(cur.canvas), cur.mags, chains()) : null; }
 
 function render() {
   if (!cur) return;
   const { canvas, mags } = cur, w = canvas.width, h = canvas.height;
-  const res = (cur.result = scoreFold(mags, w, h));
+  const res = (cur.result = scoreFold(mags, w, h, PRM, cur.order));
   const dpr = window.devicePixelRatio || 1, cssW = view.clientWidth || 600, S = (cssW * dpr) / w;
   view.width = Math.round(w * S); view.height = Math.round(h * S);
   const ctx = view.getContext("2d");
@@ -549,8 +643,13 @@ function render() {
   octx.putImageData(od, 0, 0);
   ctx.drawImage(ov, 0, 0, view.width, view.height);
   const P = i => [mags[i].x * S, mags[i].y * S], lw = Math.max(2, 2.2 * dpr), rr = mags.length ? mags[0].r * S : 10;
-  const done = new Set();
   ctx.lineCap = "round";
+  if (cur.order) {
+    ctx.strokeStyle = "rgba(60,68,76,0.75)"; ctx.lineWidth = Math.max(1.5, 1.2 * dpr); ctx.beginPath();
+    cur.order.forEach((i, k) => (k ? ctx.lineTo(...P(i)) : ctx.moveTo(...P(i))));
+    ctx.stroke();
+  }
+  const done = new Set();
   for (const s of res.scores) {
     for (const [kind, col] of [["salt", "#2b8a3e"], ["repel", "#c92a2a"]]) for (const j of s.part[kind]) {
       const key = Math.min(s.i, j) + "-" + Math.max(s.i, j) + kind; if (done.has(key)) continue; done.add(key);
@@ -583,13 +682,18 @@ function roundRect(ctx, x, y, w, h, r) {
 
 function updatePanel(res) {
   const s = res.sum;
-  document.getElementById("resultTitle").textContent = cur.name;
+  let title = cur.name;
+  if (cur.isMine && cur.when) title += `, scored ${new Date(cur.when).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  document.getElementById("resultTitle").textContent = title;
   document.getElementById("total").innerHTML = `${fmt(s.total)}<small>points</small>`;
   const counts = { R: 0, B: 0, P: 0, Y: 0, G: 0 }; cur.mags.forEach(m => counts[m.code]++);
-  const st = document.getElementById("status");
+  const st = document.getElementById("status"), st2 = document.getElementById("status2");
   const comp = `${counts.R} red, ${counts.B} blue, ${counts.P} purple, ${counts.Y + counts.G} yellow or green`;
   if (s.n !== PRM.expected) { st.className = "status warn"; st.textContent = `Found ${s.n} magnets, expected ${PRM.expected} (${comp}). Tap the photo to add or fix magnets.`; }
   else { st.className = "status"; st.textContent = `Found all ${s.n} magnets: ${comp}.`; }
+  const notes = [cur.order ? "Paper-clip links traced (thin gray line)." : "Paper-clip links not traced, so linked magnets count like any other pair."];
+  if (cur.isMine) notes.push(cur.fixes ? `Fixed by hand: ${cur.fixes} tap${cur.fixes === 1 ? "" : "s"}.` : "No fixes by hand.");
+  st2.textContent = notes.join(" ");
   const chip = (b, t) => `<div class="chip"><b>${b}</b><span>${t}</span></div>`;
   document.getElementById("chips").innerHTML =
     chip(`${s.buried}/${s.nHyd}`, "water-avoiders hidden") + chip(`${s.exposed}/${s.nPhil}`, "water-lovers outside") +
@@ -601,40 +705,78 @@ function updatePanel(res) {
     `<td class="num">${x.part.repel.length}</td><td class="num">${x.part.clash.length}</td><td class="num"><b>${fmt(x.total)}</b></td></tr>`).join("");
   document.getElementById("magBox").innerHTML =
     `<table class="board magtable"><thead><tr><th>Magnet</th><th class="num">Wet</th><th class="num">Place</th><th class="num">Salt</th><th class="num">Like</th><th class="num">Close</th><th class="num">Points</th></tr></thead><tbody>${rows}</tbody></table>`;
+  updateLock();
 }
+
+// ---------------------------------------------------------------- one photo per phone
+// Participants get one scored photo per phone (kept on the phone). #organizer lifts the limit.
+const MINE_KEY = "mfs-mine-v1";
+let mine = null;
+try { mine = JSON.parse(localStorage.getItem(MINE_KEY) || "null"); } catch { mine = null; }
+function saveMine() { try { localStorage.setItem(MINE_KEY, JSON.stringify(mine)); } catch { /* private mode: lock lasts for this visit */ } }
+
+function updateLock() {
+  const locked = !isOrg() && !!mine;
+  document.getElementById("photoBtn").hidden = locked;
+  document.getElementById("mineNote").hidden = !locked;
+  document.getElementById("showMine").hidden = !!(cur && cur.isMine);
+}
+
+function showMine() {
+  if (!mine) return;
+  setBusy(true);
+  const img = new Image();
+  img.onload = () => {
+    const cv = document.createElement("canvas"); cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    cv.getContext("2d", { willReadFrequently: true }).drawImage(img, 0, 0);
+    cur = { name: "Your fold", canvas: cv, mags: mine.mags.map(m => ({ ...m })), history: [], isMine: true, fixes: mine.fixes || 0, when: mine.when };
+    exBox.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", "false"));
+    retrace(); render(); setBusy(false);
+  };
+  img.onerror = () => setBusy(false);
+  img.src = mine.img;
+}
+document.getElementById("showMine").addEventListener("click", showMine);
 
 // ---------------------------------------------------------------- loading photos
 function setBusy(on) { document.getElementById("busy").hidden = !on; }
 
-function loadImage(src, name) {
+function warn(msg) { const st = document.getElementById("status"); st.className = "status warn"; st.textContent = msg; document.getElementById("status2").textContent = ""; }
+
+function loadImage(src, name, own = false) {
   setBusy(true);
   const img = new Image();
   img.onload = () => setTimeout(() => {
     try {
       const { canvas, mags } = findStructure(img, img.naturalWidth, img.naturalHeight);
-      cur = { name, canvas, mags, history: [] };
-      render();
+      if (own && mags.length < 5) {
+        warn("Could not find the magnets in that photo. Try again from straight above; this did not use up your photo.");
+      } else {
+        cur = { name, canvas, mags, history: [], isMine: own && !isOrg(), fixes: 0, when: Date.now() };
+        retrace();
+        if (cur.isMine) { mine = { img: canvas.toDataURL("image/jpeg", 0.85), mags: mags.map(m => ({ x: m.x, y: m.y, r: m.r, code: m.code })), fixes: 0, when: cur.when }; saveMine(); }
+        render();
+      }
     } catch (e) {
-      const st = document.getElementById("status"); st.className = "status warn"; st.textContent = "Could not read that photo. Try another one taken straight from above.";
+      warn("Could not read that photo. Try another one taken straight from above.");
     }
     setBusy(false);
   }, 30);
-  img.onerror = () => { setBusy(false); const st = document.getElementById("status"); st.className = "status warn"; st.textContent = "That file is not a photo this browser can open. Try a JPEG or PNG."; };
+  img.onerror = () => { setBusy(false); warn("That file is not a photo this browser can open. Try a JPEG or PNG."); };
   img.src = src;
 }
 
 document.getElementById("photo").addEventListener("change", e => {
-  const f = e.target.files && e.target.files[0]; if (!f) return;
-  document.querySelectorAll("#examples button").forEach(b => b.setAttribute("aria-pressed", "false"));
-  const n = board.length + 1;
-  loadImage(URL.createObjectURL(f), `Your fold ${n}`);
-  e.target.value = "";
+  const f = e.target.files && e.target.files[0]; e.target.value = "";
+  if (!f || (!isOrg() && mine)) return;
+  exBox.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", "false"));
+  loadImage(URL.createObjectURL(f), isOrg() ? `Photo ${board.length + 1}` : "Your fold", true);
 });
 
 const exBox = document.getElementById("examples");
-Object.keys(EXAMPLES).forEach((k, idx) => {
+Object.keys(EXAMPLES).forEach(k => {
   const b = document.createElement("button"); b.type = "button"; b.className = "ghost"; b.textContent = k;
-  b.setAttribute("aria-pressed", idx === 0 ? "true" : "false");
+  b.setAttribute("aria-pressed", "false");
   b.addEventListener("click", () => {
     exBox.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
     loadImage(EXAMPLES[k], `Example ${k}`);
@@ -643,6 +785,11 @@ Object.keys(EXAMPLES).forEach((k, idx) => {
 });
 
 // ---------------------------------------------------------------- tap to fix
+function afterEdit() {
+  retrace();
+  if (cur.isMine && mine) { mine.mags = cur.mags.map(m => ({ x: m.x, y: m.y, r: m.r, code: m.code })); mine.fixes = cur.fixes; saveMine(); }
+  render();
+}
 view.addEventListener("click", e => {
   if (!cur) return;
   const rect = view.getBoundingClientRect(), w = cur.canvas.width;
@@ -657,11 +804,14 @@ view.addEventListener("click", e => {
   } else {
     cur.mags.push({ x, y, r, code: "R", hue: 0 });
   }
-  render();
+  cur.fixes = (cur.fixes || 0) + 1;
+  afterEdit();
 });
-document.getElementById("undo").addEventListener("click", () => { if (cur && cur.history.length) { cur.mags = cur.history.pop(); render(); } });
+document.getElementById("undo").addEventListener("click", () => {
+  if (cur && cur.history.length) { cur.mags = cur.history.pop(); cur.fixes = Math.max(0, (cur.fixes || 0) - 1); afterEdit(); }
+});
 
-// ---------------------------------------------------------------- leaderboard
+// ---------------------------------------------------------------- leaderboard (organizer)
 let board = [];
 const store = {
   load() { try { return JSON.parse(localStorage.getItem("mfs-board") || "[]"); } catch { return []; } },
@@ -679,7 +829,7 @@ function thumb(canvas) {
 function renderBoard() {
   const box = document.getElementById("boardBox");
   if (!board.length) { box.innerHTML = `<p class="empty">No folds saved yet. Score a photo, type a team name and tap Add to leaderboard.</p>`; return; }
-  const rows = board.map(b => ({ b, s: scoreFold(b.mags, b.w, b.h).sum })).sort((a, z) => z.s.total - a.s.total);
+  const rows = board.map(b => ({ b, s: scoreFold(b.mags, b.w, b.h, PRM, b.order || null).sum })).sort((a, z) => z.s.total - a.s.total);
   box.innerHTML = `<table class="board"><thead><tr><th>#</th><th></th><th>Team</th><th class="num">Points</th><th class="num">Hidden</th><th class="num">Outside</th><th class="num">Salt</th><th class="num">Close</th><th></th></tr></thead><tbody>` +
     rows.map((r, k) => `<tr><td class="rank">${k + 1}</td><td>${r.b.thumb ? `<img src="${r.b.thumb}" alt="">` : ""}</td><td>${escapeHtml(r.b.name)}</td>` +
       `<td class="num"><b>${fmt(r.s.total)}</b></td><td class="num">${r.s.buried}/${r.s.nHyd}</td><td class="num">${r.s.exposed}/${r.s.nPhil}</td>` +
@@ -693,7 +843,7 @@ function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp
 document.getElementById("saveForm").addEventListener("submit", e => {
   e.preventDefault(); if (!cur) return;
   const input = document.getElementById("team"), name = input.value.trim() || cur.name;
-  board.push({ id: Date.now(), name, mags: cur.mags.map(m => ({ x: m.x, y: m.y, r: m.r, code: m.code })), w: cur.canvas.width, h: cur.canvas.height, thumb: thumb(cur.canvas) });
+  board.push({ id: Date.now(), name, mags: cur.mags.map(m => ({ x: m.x, y: m.y, r: m.r, code: m.code })), order: cur.order, w: cur.canvas.width, h: cur.canvas.height, thumb: thumb(cur.canvas) });
   store.save(); renderBoard(); input.value = "";
 });
 
@@ -704,19 +854,38 @@ document.getElementById("clearBox").addEventListener("click", e => {
   else if (e.target.id === "clearNo") box.innerHTML = `<button class="link" id="clear" type="button">Clear all</button>`;
 });
 
-// ---------------------------------------------------------------- settings
+// ---------------------------------------------------------------- settings (organizer)
 const RULE_IDS = ["minSep", "contact", "wClash", "wBurial", "probe", "expected"];
-function syncRules() { RULE_IDS.forEach(id => (document.getElementById(id).value = PRM[id])); }
+function syncRules() {
+  RULE_IDS.forEach(id => (document.getElementById(id).value = PRM[id]));
+  document.getElementById("chains").value = chains().join("\n");
+}
 RULE_IDS.forEach(id => document.getElementById(id).addEventListener("change", e => {
   const v = parseFloat(e.target.value); if (!Number.isFinite(v)) return;
   PRM[id] = v; render(); renderBoard();
 }));
+document.getElementById("chains").addEventListener("change", e => {
+  const seqs = e.target.value.toUpperCase().split(/\s+/).map(s => s.replace(/[^RBPYG]/g, "")).filter(s => s.length > 1);
+  try { localStorage.setItem("mfs-chains", JSON.stringify(seqs)); } catch { /* keep built-in chains */ }
+  if (cur) { retrace(); render(); }
+});
 document.getElementById("resetRules").addEventListener("click", () => { PRM = { ...DEF }; syncRules(); render(); renderBoard(); });
+document.getElementById("resetMineBox").addEventListener("click", e => {
+  const box = document.getElementById("resetMineBox");
+  const idle = `<button class="link" id="resetMine" type="button">Let this phone take a new photo</button>`;
+  if (e.target.id === "resetMine") box.innerHTML = `<button class="link" id="resetYes" type="button">Yes, forget this phone's photo</button> <button class="link" id="resetNo" type="button">Keep it</button>`;
+  else if (e.target.id === "resetYes") { mine = null; try { localStorage.removeItem(MINE_KEY); } catch { /* nothing stored */ } box.innerHTML = idle; updateLock(); }
+  else if (e.target.id === "resetNo") box.innerHTML = idle;
+});
+
+function applyMode() { document.querySelectorAll("[data-org]").forEach(el => (el.hidden = !isOrg())); syncRules(); updateLock(); }
+window.addEventListener("hashchange", applyMode);
 
 let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 150); });
 
-syncRules(); renderBoard();
-loadImage(EXAMPLES.S1, "Example S1");
+applyMode(); renderBoard();
+if (!isOrg() && mine) showMine();
+else { exBox.querySelector("button").setAttribute("aria-pressed", "true"); loadImage(EXAMPLES.S1, "Example S1"); }
 </script>
 
 </body>
