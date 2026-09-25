@@ -132,7 +132,7 @@ footer a { color: var(--accent); }
       Take or choose a photo
       <input id="photo" type="file" accept="image/*">
     </label>
-    <label class="share" for="share"><input id="share" type="checkbox" checked><span>Share my photos with the Popa Lab at UWM to help improve this program. Only the photo and its score are sent, no names. Untick to keep your photos on this phone.</span></label>
+    <label class="share" for="share"><input id="share" type="checkbox" checked><span>Share my photos with the Popa Lab at UWM to help improve this program. Only the photo and its score are sent, no names. <b>To have your score recorded for the competition, keep this ticked</b> (the shared photo is how we record it). Untick to keep your photos on this phone.</span></label>
     <div class="examples" id="examples">Or look at a fold from the 2022 article:</div>
   </div>
 
@@ -721,7 +721,7 @@ function updatePanel(res) {
   const notes = !cur.chain ? [] : cur.chainGuess ? [`Looks like ${cur.chain} (from its colors).`] : [`This is ${cur.chain} (thin gray line shows its order).`];
   if (cur.isMine) notes.push(cur.fixes ? `Fixed by hand: ${cur.fixes} tap${cur.fixes === 1 ? "" : "s"}.` : "No fixes by hand.");
   st2.textContent = notes.join(" ");
-  document.getElementById("status3").textContent = cur.own ? cur.shareNote || (cur.shareId ? "Shared with the Popa Lab." : "") : "";
+  updateShareLine();
   const chip = (b, t) => `<div class="chip"><b>${b}</b><span>${t}</span></div>`;
   document.getElementById("chips").innerHTML =
     chip(`${s.buried}/${s.nHyd}`, "water-avoiders hidden") + chip(`${s.exposed}/${s.nPhil}`, "water-lovers outside") +
@@ -824,6 +824,7 @@ try { shareBox.checked = localStorage.getItem("mfs-share") !== "0"; } catch { /*
 shareBox.addEventListener("change", () => {
   try { localStorage.setItem("mfs-share", shareBox.checked ? "1" : "0"); } catch { /* not remembered */ }
   if (shareBox.checked && cur && cur.own) sharePhoto(cur);
+  updateShareLine();
 });
 
 function newId() { return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2); }
@@ -863,7 +864,16 @@ function scoredImage(c) {
   return cv.toDataURL("image/jpeg", 0.85);
 }
 
-function setShareNote(c, text) { c.shareNote = text; if (c === cur) document.getElementById("status3").textContent = text; }
+function setShareNote(c, text) { c.shareNote = text; if (c === cur) updateShareLine(); }
+
+function updateShareLine() {
+  const el = document.getElementById("status3");
+  if (!cur || !cur.own) { el.textContent = ""; el.className = "status"; return; }
+  const off = !cur.shareId && !cur.sharing && !shareBox.checked;
+  el.className = off ? "status warn" : "status";
+  el.textContent = off ? 'Not shared, so this score will not be recorded for the competition. Tick "Share my photos" to enter it.'
+    : cur.shareNote || (cur.shareId ? "Shared with the Popa Lab." : "");
+}
 
 async function sharePhoto(c) {
   if (!c || !c.own || c.shareId || c.sharing) return;
