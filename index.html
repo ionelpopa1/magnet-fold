@@ -101,8 +101,6 @@ details ul, details ol { margin: 6px 0 0; padding-left: 20px; display: flex; fle
 .rules label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
 .rules input { min-height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font: 16px var(--mono); color: var(--ink); background: var(--surface); }
 .magtable td, .magtable th { font-size: 14px; }
-.mine { background: var(--chip); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; font-size: 15px; }
-.mine b { font-family: var(--display); font-size: 17px; }
 .status + .status { margin-top: -8px; }
 .rules textarea { min-height: 70px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: 14px var(--mono); color: var(--ink); background: var(--surface); resize: vertical; }
 .rules .wide { grid-column: 1 / -1; }
@@ -132,10 +130,6 @@ footer a { color: var(--accent); }
       Take or choose a photo
       <input id="photo" type="file" accept="image/*">
     </label>
-    <div class="mine" id="mineNote" hidden>
-      <span><b>Your fold is scored.</b> One photo per person: show your score to an organizer.</span>
-      <button class="ghost" id="showMine" type="button">Show my fold</button>
-    </div>
     <div class="examples" id="examples">Or look at a fold from the 2022 article:</div>
   </div>
 
@@ -214,7 +208,6 @@ footer a { color: var(--accent); }
       <label for="chains" class="wide">Chains, one per line as "Name: letters", first to last magnet (R red, B blue, P purple, Y yellow, G green). Used to name the chain in a photo; saved on this phone only.<textarea id="chains" spellcheck="false"></textarea></label>
     </div>
     <p style="margin-top:10px"><button class="link" id="resetRules" type="button">Reset to the article's settings</button></p>
-    <p><span id="resetMineBox"><button class="link" id="resetMine" type="button">Let this phone take a new photo</button></span></p>
   </details>
 
   <footer>Based on Popa &amp; Saitis, <a href="https://doi.org/10.1021/acs.jchemed.2c00231">J. Chem. Educ. 2022, 99, 3074-3082</a>. Photos stay on this device; nothing is uploaded.</footer>
@@ -706,22 +699,14 @@ function updatePanel(res) {
     `<td class="num">${x.part.repel.length}</td><td class="num">${x.part.clash.length}</td><td class="num"><b>${fmt(x.total)}</b></td></tr>`).join("");
   document.getElementById("magBox").innerHTML =
     `<table class="board magtable"><thead><tr><th>Magnet</th><th class="num">Wet</th><th class="num">Place</th><th class="num">Salt</th><th class="num">Like</th><th class="num">Close</th><th class="num">Points</th></tr></thead><tbody>${rows}</tbody></table>`;
-  updateLock();
 }
 
-// ---------------------------------------------------------------- one photo per phone
-// Participants get one scored photo per phone (kept on the phone). #organizer lifts the limit.
+// ---------------------------------------------------------------- last photo on this phone
+// The newest scored photo is kept on the phone so reopening the page shows it again.
 const MINE_KEY = "mfs-mine-v1";
 let mine = null;
 try { mine = JSON.parse(localStorage.getItem(MINE_KEY) || "null"); } catch { mine = null; }
-function saveMine() { try { localStorage.setItem(MINE_KEY, JSON.stringify(mine)); } catch { /* private mode: lock lasts for this visit */ } }
-
-function updateLock() {
-  const locked = !isOrg() && !!mine;
-  document.getElementById("photoBtn").hidden = locked;
-  document.getElementById("mineNote").hidden = !locked;
-  document.getElementById("showMine").hidden = !!(cur && cur.isMine);
-}
+function saveMine() { try { localStorage.setItem(MINE_KEY, JSON.stringify(mine)); } catch { /* private mode: not kept */ } }
 
 function showMine() {
   if (!mine) return;
@@ -737,7 +722,6 @@ function showMine() {
   img.onerror = () => setBusy(false);
   img.src = mine.img;
 }
-document.getElementById("showMine").addEventListener("click", showMine);
 
 // ---------------------------------------------------------------- loading photos
 function setBusy(on) { document.getElementById("busy").hidden = !on; }
@@ -751,7 +735,7 @@ function loadImage(src, name, own = false) {
     try {
       const { canvas, mags } = findStructure(img, img.naturalWidth, img.naturalHeight);
       if (own && mags.length < 5) {
-        warn("Could not find the magnets in that photo. Try again from straight above; this did not use up your photo.");
+        warn("Could not find the magnets in that photo. Try again from straight above.");
       } else {
         cur = { name, canvas, mags, history: [], isMine: own && !isOrg(), fixes: 0, when: Date.now() };
         retrace();
@@ -769,7 +753,7 @@ function loadImage(src, name, own = false) {
 
 document.getElementById("photo").addEventListener("change", e => {
   const f = e.target.files && e.target.files[0]; e.target.value = "";
-  if (!f || (!isOrg() && mine)) return;
+  if (!f) return;
   exBox.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", "false"));
   loadImage(URL.createObjectURL(f), isOrg() ? `Photo ${board.length + 1}` : "Your fold", true);
 });
@@ -870,15 +854,7 @@ document.getElementById("chains").addEventListener("change", e => {
   if (cur) { retrace(); render(); }
 });
 document.getElementById("resetRules").addEventListener("click", () => { PRM = { ...DEF }; syncRules(); render(); renderBoard(); });
-document.getElementById("resetMineBox").addEventListener("click", e => {
-  const box = document.getElementById("resetMineBox");
-  const idle = `<button class="link" id="resetMine" type="button">Let this phone take a new photo</button>`;
-  if (e.target.id === "resetMine") box.innerHTML = `<button class="link" id="resetYes" type="button">Yes, forget this phone's photo</button> <button class="link" id="resetNo" type="button">Keep it</button>`;
-  else if (e.target.id === "resetYes") { mine = null; try { localStorage.removeItem(MINE_KEY); } catch { /* nothing stored */ } box.innerHTML = idle; updateLock(); }
-  else if (e.target.id === "resetNo") box.innerHTML = idle;
-});
-
-function applyMode() { document.querySelectorAll("[data-org]").forEach(el => (el.hidden = !isOrg())); syncRules(); updateLock(); }
+function applyMode() { document.querySelectorAll("[data-org]").forEach(el => (el.hidden = !isOrg())); syncRules(); }
 window.addEventListener("hashchange", applyMode);
 
 let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 150); });
