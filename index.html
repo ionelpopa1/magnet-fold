@@ -894,11 +894,22 @@ async function sharePhoto(c) {
 
 function queueFix(c) {
   clearTimeout(c.fixTimer);
-  c.fixTimer = setTimeout(() => {
-    postLibrary({ key: LIBRARY_KEY, type: "fix", id: c.shareId, fixes: c.fixes, chain: c.chain ? (c.chainGuess ? "maybe " : "") + c.chain : "",
-      scored: scoredImage(c), ...shareData(c) }).catch(() => { /* the photo is saved; only the fix is lost */ });
-  }, 4000);
+  c.fixPending = true;
+  c.fixTimer = setTimeout(() => sendFix(c, false), 1500);
 }
+
+// quick = the phone is leaving the page: send at once, without the scored picture (too big for that).
+function sendFix(c, quick) {
+  if (!c.fixPending || !c.shareId) return;
+  c.fixPending = false;
+  const payload = { key: LIBRARY_KEY, type: "fix", id: c.shareId, fixes: c.fixes, chain: c.chain ? (c.chainGuess ? "maybe " : "") + c.chain : "",
+    scored: quick ? "" : scoredImage(c), ...shareData(c) };
+  if (quick) fetch(LIBRARY_URL, { method: "POST", body: JSON.stringify(payload), keepalive: true }).catch(() => { /* best effort */ });
+  else postLibrary(payload).catch(() => { /* the photo is saved; only the fix is lost */ });
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && cur && cur.fixPending) { clearTimeout(cur.fixTimer); sendFix(cur, true); }
+});
 view.addEventListener("click", e => {
   if (!cur) return;
   const rect = view.getBoundingClientRect(), w = cur.canvas.width;
