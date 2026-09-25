@@ -132,7 +132,7 @@ footer a { color: var(--accent); }
       Take or choose a photo
       <input id="photo" type="file" accept="image/*">
     </label>
-    <label class="share" for="share"><input id="share" type="checkbox"><span>Share my photos with the Popa Lab at UWM to help improve this program. Only the photo and its score are sent, no names.</span></label>
+    <label class="share" for="share"><input id="share" type="checkbox" checked><span>Share my photos with the Popa Lab at UWM to help improve this program. Only the photo and its score are sent, no names. Untick to keep your photos on this phone.</span></label>
     <div class="examples" id="examples">Or look at a fold from the 2022 article:</div>
   </div>
 
@@ -214,7 +214,7 @@ footer a { color: var(--accent); }
     <p style="margin-top:10px"><button class="link" id="resetRules" type="button">Reset to the article's settings</button></p>
   </details>
 
-  <footer>Based on Popa &amp; Saitis, <a href="https://doi.org/10.1021/acs.jchemed.2c00231">J. Chem. Educ. 2022, 99, 3074-3082</a>. Photos stay on this device unless you tick "Share my photos".</footer>
+  <footer>Based on Popa &amp; Saitis, <a href="https://doi.org/10.1021/acs.jchemed.2c00231">J. Chem. Educ. 2022, 99, 3074-3082</a>. Photos are sent to the Popa Lab only while "Share my photos" is ticked; untick it to keep them on this device.</footer>
 </div>
 
 <script>
@@ -813,14 +813,14 @@ function afterEdit() {
 }
 
 // ---------------------------------------------------------------- sharing photos with the lab (opt-in)
-// Ticked box = each photo taken here is sent (the cropped image the program analyzed, its score and
+// Ticked box (the default) = each photo taken here is sent (the cropped image the program analyzed, its score and
 // the magnets it found) to the lab's Google Apps Script, which files it in Drive and logs it in a Sheet.
 // Hand fixes made afterwards update the same row. Nothing is sent while the box is unticked.
 const LIBRARY_URL = "https://script.google.com/macros/s/AKfycbyPINQWkjx6jY3tqSlYQkJ2NgpAMVWumjrD5laSgMOt_V_l0a_nOtZA6r_wQy3ONKQ9/exec";
 const LIBRARY_KEY = "popalab-magnets-2026";   // filters random junk; not a password
 const PAGE_VERSION = "2026-09-25";
 const shareBox = document.getElementById("share");
-try { shareBox.checked = localStorage.getItem("mfs-share") === "1"; } catch { /* default: not shared */ }
+try { shareBox.checked = localStorage.getItem("mfs-share") !== "0"; } catch { /* default: shared (box ticked) */ }
 shareBox.addEventListener("change", () => {
   try { localStorage.setItem("mfs-share", shareBox.checked ? "1" : "0"); } catch { /* not remembered */ }
   if (shareBox.checked && cur && cur.own) sharePhoto(cur);
