@@ -118,7 +118,7 @@ footer a { color: var(--accent); }
   </header>
 
   <div class="legend" aria-label="Color code">
-    <span><i class="dot" style="background:var(--m-R)"></i>red: negative</span>
+    <span><i class="dot" style="background:var(--m-R)"></i>pink: negative</span>
     <span><i class="dot" style="background:var(--m-B)"></i>blue: positive</span>
     <span><i class="dot" style="background:var(--m-P)"></i>purple: polar</span>
     <span><i class="dot" style="background:var(--m-Y)"></i><i class="dot" style="background:var(--m-G)"></i>yellow, green: avoid water</span>
@@ -175,8 +175,8 @@ footer a { color: var(--accent); }
     <p>The program finds every magnet by its color, then rolls a pretend drop of water around the outside of the fold. The drop is about as wide as one paper-clip link. Any magnet the drop can touch counts as exposed; a hole inside the fold that the drop cannot get into does not count as water.</p>
     <ul>
       <li>Right place (yellow or green hidden, any other color exposed): +1. Wrong place: −1. Partly exposed: in between.</li>
-      <li>A red and a blue magnet within one link of each other make a salt bridge: +1 for each of the two.</li>
-      <li>Two reds, or two blues, that close: −1 for each.</li>
+      <li>A pink and a blue magnet within one link of each other make a salt bridge: +1 for each of the two.</li>
+      <li>Two pinks, or two blues, that close: −1 for each.</li>
       <li>Two magnets that almost touch (closer than half a link): −1 for each.</li>
     </ul>
     <p style="margin-top:8px">One link is the length of a stretched magnet plus paper clip. The program measures it from the size of the magnets in the photo, so it does not matter how close you hold the phone.</p>
@@ -205,7 +205,7 @@ footer a { color: var(--accent); }
       <label for="wClash">Points lost per crowded magnet<input id="wClash" type="number" step="0.25" min="0" max="5"></label>
       <label for="wBurial">Points for right place<input id="wBurial" type="number" step="0.25" min="0" max="5"></label>
       <label for="probe">Water drop radius (links)<input id="probe" type="number" step="0.05" min="0.1" max="2"></label>
-      <label for="chains" class="wide">Chains, one per line as "Name: letters", first to last magnet (R red, B blue, P purple, Y yellow, G green). Used to name the chain in a photo; saved on this phone only.<textarea id="chains" spellcheck="false"></textarea></label>
+      <label for="chains" class="wide">Chains, one per line as "Name: letters", first to last magnet (R pink, B blue, P purple, Y yellow, G green). Used to name the chain in a photo; saved on this phone only.<textarea id="chains" spellcheck="false"></textarea></label>
     </div>
     <p style="margin-top:10px"><button class="link" id="resetRules" type="button">Reset to the article's settings</button></p>
   </details>
@@ -244,7 +244,7 @@ function chains() {
   try { extra = JSON.parse(localStorage.getItem("mfs-chains2") || "[]"); } catch { extra = []; }
   return isOrg() && extra.length ? extra : CHAINS_BUILTIN;
 }
-const NAME = { R: "red", B: "blue", P: "purple", Y: "yellow", G: "green" };
+const NAME = { R: "pink", B: "blue", P: "purple", Y: "yellow", G: "green" };
 const SWATCH = { R: "#e9679a", B: "#1f6cc4", P: "#7a4ea6", Y: "#e4b100", G: "#12a393" };
 const WORK = 700;
 
@@ -712,7 +712,7 @@ function updatePanel(res) {
   document.getElementById("total").innerHTML = `${fmt(s.total)}<small>points</small>`;
   const counts = { R: 0, B: 0, P: 0, Y: 0, G: 0 }; cur.mags.forEach(m => counts[m.code]++);
   const st = document.getElementById("status"), st2 = document.getElementById("status2");
-  const comp = `${counts.R} red, ${counts.B} blue, ${counts.P} purple, ${counts.Y + counts.G} yellow or green`;
+  const comp = `${counts.R} pink, ${counts.B} blue, ${counts.P} purple, ${counts.Y + counts.G} yellow or green`;
   st.className = "status"; st.textContent = `Found ${s.n} magnets: ${comp}.`;
   const notes = !cur.chain ? [] : cur.chainGuess ? [`Looks like ${cur.chain} (from its colors).`] : [`This is ${cur.chain} (thin gray line shows its order).`];
   if (cur.isMine) notes.push(cur.fixes ? `Fixed by hand: ${cur.fixes} tap${cur.fixes === 1 ? "" : "s"}.` : "No fixes by hand.");
