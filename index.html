@@ -223,7 +223,13 @@ const HYD = { Y: true, G: true };
 const CHG = { R: -1, B: 1 };
 const CYCLE = ["R", "B", "P", "Y", "G"];
 // Chains used at events (colors first to last magnet). Only used to name the chain in a photo.
-const CHAINS_BUILTIN = [{ name: "the article chain", seq: "RPBYPRYBPRPYGYGBGYPB" }];
+const CHAINS_BUILTIN = [
+  { name: "Chain A", seq: "GRYBYYGGBYGBGYBGGBGP" },
+  { name: "Chain B", seq: "PBYGYGRRPGGYBGBPYGRY" },
+  { name: "Chain C", seq: "BYGYGRBPRYGBBYPBYBRP" },
+  { name: "Chain D", seq: "PBGGYGYBGYRPYPYRGGPR" },
+  { name: "the article chain", seq: "RPBYPRYBPRPYGYGBGYPB" },
+];
 const isOrg = () => location.hash === "#organizer";
 function parseChains(text) {
   return text.split(/\n+/).map((line, k) => {
@@ -357,18 +363,33 @@ function hueToCode(hh) {
   return "P";
 }
 
-function splitBluePurple(hues, codes) {
-  const idx = codes.map((c, i) => (c === "B" || c === "P" ? i : -1)).filter(i => i >= 0);
-  if (idx.length < 2) return codes;
-  let cb = 268, cp = 312;
-  for (let it = 0; it < 20; it++) {
-    const b = idx.filter(i => Math.abs(hues[i] - cb) <= Math.abs(hues[i] - cp)).map(i => hues[i]);
-    const p = idx.filter(i => Math.abs(hues[i] - cb) > Math.abs(hues[i] - cp)).map(i => hues[i]);
-    if (!b.length || !p.length) break;
-    cb = b.reduce((s, v) => s + v, 0) / b.length; cp = p.reduce((s, v) => s + v, 0) / p.length;
+// Blue, purple and pink share one arc of the hue circle, and where they sit shifts with lighting
+// and magnet batch (the 2026 pinks are more magenta than the 2022 ones). Split them at the natural
+// hue gaps in this photo, then name the groups B, P, R in hue order, choosing the order-preserving
+// labels closest to the usual hues.
+const ARC_PROTO = { B: 270, P: 312, R: 352 };
+function splitArc(hues, codes, gap = 10) {
+  const idx = codes.map((c, i) => ("BPR".includes(c) ? i : -1)).filter(i => i >= 0);
+  if (!idx.length) return codes;
+  const u = i => (hues[i] >= 230 ? hues[i] : hues[i] + 360);
+  const order = idx.slice().sort((a, b) => u(a) - u(b));
+  const groups = [[order[0]]];
+  for (let k = 1; k < order.length; k++) {
+    if (u(order[k]) - u(order[k - 1]) >= gap) groups.push([]);
+    groups[groups.length - 1].push(order[k]);
   }
+  const means = groups.map(g => g.reduce((s, i) => s + u(i), 0) / g.length);
+  let best = null, bestCost = Infinity;
+  const search = (k, lo, acc, cost) => {
+    if (k === groups.length) { if (cost < bestCost) { bestCost = cost; best = acc.slice(); } return; }
+    for (let li = lo; li < 3; li++) {
+      const lab = "BPR"[li];
+      acc.push(lab); search(k + 1, li, acc, cost + groups[k].length * Math.abs(means[k] - ARC_PROTO[lab])); acc.pop();
+    }
+  };
+  search(0, 0, [], 0);
   const out = codes.slice();
-  for (const i of idx) out[i] = Math.abs(hues[i] - cb) <= Math.abs(hues[i] - cp) ? "B" : "P";
+  groups.forEach((g, k) => g.forEach(i => (out[i] = best[k])));
   return out;
 }
 
@@ -397,7 +418,7 @@ function detectMagnets(img, minChroma = 18) {
     const hh = ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
     hues.push(hh); mags.push({ x: p.x, y: p.y, r: radius, hue: hh });
   }
-  const codes = splitBluePurple(hues, hues.map(hueToCode));
+  const codes = splitArc(hues, hues.map(hueToCode));
   mags.forEach((m, i) => (m.code = codes[i]));
   if (mags.length) { const rm = blobRadius(c, w, h, mags); mags.forEach(m => (m.r = rm)); }
   return mags;
@@ -613,7 +634,15 @@ function imageDataOf(canvas) { return canvas.getContext("2d", { willReadFrequent
 // Re-trace the paper-clip links whenever the magnets change.
 function retrace() {
   const t = cur.mags.length ? traceChain(imageDataOf(cur.canvas), cur.mags, chains()) : null;
-  cur.order = t ? t.order : null; cur.chain = t ? t.name : "";
+  cur.order = t ? t.order : null; cur.chain = t ? t.name : ""; cur.chainGuess = false;
+  if (!t && cur.mags.length) {
+    // No exact match (a magnet misread or missed): name the chain whose color counts are closest.
+    const count = str => { const c = { R: 0, B: 0, P: 0, Y: 0, G: 0 }; for (const ch of str) c[ch]++; return c; };
+    const mine = count(cur.mags.map(m => m.code).join(""));
+    const scored = chains().map(ch => { const c = count(ch.seq); return { name: ch.name, d: "RBPYG".split("").reduce((s, k) => s + Math.abs(c[k] - mine[k]), 0) }; })
+      .sort((a, b) => a.d - b.d);
+    if (scored.length && scored[0].d <= 3 && (scored.length === 1 || scored[1].d > scored[0].d)) { cur.chain = scored[0].name; cur.chainGuess = true; }
+  }
 }
 
 function render() {
@@ -685,7 +714,7 @@ function updatePanel(res) {
   const st = document.getElementById("status"), st2 = document.getElementById("status2");
   const comp = `${counts.R} red, ${counts.B} blue, ${counts.P} purple, ${counts.Y + counts.G} yellow or green`;
   st.className = "status"; st.textContent = `Found ${s.n} magnets: ${comp}.`;
-  const notes = cur.chain ? [`This is ${cur.chain} (thin gray line shows its order).`] : [];
+  const notes = !cur.chain ? [] : cur.chainGuess ? [`Looks like ${cur.chain} (from its colors).`] : [`This is ${cur.chain} (thin gray line shows its order).`];
   if (cur.isMine) notes.push(cur.fixes ? `Fixed by hand: ${cur.fixes} tap${cur.fixes === 1 ? "" : "s"}.` : "No fixes by hand.");
   st2.textContent = notes.join(" ");
   const chip = (b, t) => `<div class="chip"><b>${b}</b><span>${t}</span></div>`;
