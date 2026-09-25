@@ -102,6 +102,8 @@ details ul, details ol { margin: 6px 0 0; padding-left: 20px; display: flex; fle
 .rules input { min-height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font: 16px var(--mono); color: var(--ink); background: var(--surface); }
 .magtable td, .magtable th { font-size: 14px; }
 .status + .status { margin-top: -8px; }
+.share { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; color: var(--muted); cursor: pointer; }
+.share input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--accent); flex: none; }
 .rules textarea { min-height: 70px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: 14px var(--mono); color: var(--ink); background: var(--surface); resize: vertical; }
 .rules .wide { grid-column: 1 / -1; }
 footer { font-size: 13px; color: var(--muted); }
@@ -130,6 +132,7 @@ footer a { color: var(--accent); }
       Take or choose a photo
       <input id="photo" type="file" accept="image/*">
     </label>
+    <label class="share" for="share"><input id="share" type="checkbox"><span>Share my photos with the Popa Lab at UWM to help improve this program. Only the photo and its score are sent, no names.</span></label>
     <div class="examples" id="examples">Or look at a fold from the 2022 article:</div>
   </div>
 
@@ -140,6 +143,7 @@ footer a { color: var(--accent); }
     </div>
     <p class="status" id="status"></p>
     <p class="status" id="status2"></p>
+    <p class="status" id="status3"></p>
     <div class="canvas-box">
       <canvas id="view" aria-label="Photo with a score next to every magnet"></canvas>
       <div class="busy" id="busy" hidden>Scoring…</div>
@@ -210,7 +214,7 @@ footer a { color: var(--accent); }
     <p style="margin-top:10px"><button class="link" id="resetRules" type="button">Reset to the article's settings</button></p>
   </details>
 
-  <footer>Based on Popa &amp; Saitis, <a href="https://doi.org/10.1021/acs.jchemed.2c00231">J. Chem. Educ. 2022, 99, 3074-3082</a>. Photos stay on this device; nothing is uploaded.</footer>
+  <footer>Based on Popa &amp; Saitis, <a href="https://doi.org/10.1021/acs.jchemed.2c00231">J. Chem. Educ. 2022, 99, 3074-3082</a>. Photos stay on this device unless you tick "Share my photos".</footer>
 </div>
 
 <script>
@@ -717,6 +721,7 @@ function updatePanel(res) {
   const notes = !cur.chain ? [] : cur.chainGuess ? [`Looks like ${cur.chain} (from its colors).`] : [`This is ${cur.chain} (thin gray line shows its order).`];
   if (cur.isMine) notes.push(cur.fixes ? `Fixed by hand: ${cur.fixes} tap${cur.fixes === 1 ? "" : "s"}.` : "No fixes by hand.");
   st2.textContent = notes.join(" ");
+  document.getElementById("status3").textContent = cur.own ? cur.shareNote || (cur.shareId ? "Shared with the Popa Lab." : "") : "";
   const chip = (b, t) => `<div class="chip"><b>${b}</b><span>${t}</span></div>`;
   document.getElementById("chips").innerHTML =
     chip(`${s.buried}/${s.nHyd}`, "water-avoiders hidden") + chip(`${s.exposed}/${s.nPhil}`, "water-lovers outside") +
@@ -744,7 +749,7 @@ function showMine() {
   img.onload = () => {
     const cv = document.createElement("canvas"); cv.width = img.naturalWidth; cv.height = img.naturalHeight;
     cv.getContext("2d", { willReadFrequently: true }).drawImage(img, 0, 0);
-    cur = { name: "Your fold", canvas: cv, mags: mine.mags.map(m => ({ ...m })), history: [], isMine: true, fixes: mine.fixes || 0, when: mine.when };
+    cur = { name: "Your fold", canvas: cv, mags: mine.mags.map(m => ({ ...m })), history: [], isMine: true, own: true, fixes: mine.fixes || 0, when: mine.when, shareId: mine.shareId || null };
     exBox.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", "false"));
     retrace(); render(); setBusy(false);
   };
@@ -766,10 +771,11 @@ function loadImage(src, name, own = false) {
       if (own && mags.length < 5) {
         warn("Could not find the magnets in that photo. Try again from straight above.");
       } else {
-        cur = { name, canvas, mags, history: [], isMine: own && !isOrg(), fixes: 0, when: Date.now() };
+        cur = { name, canvas, mags, history: [], isMine: own && !isOrg(), own, fixes: 0, when: Date.now() };
         retrace();
         if (cur.isMine) { mine = { img: canvas.toDataURL("image/jpeg", 0.85), mags: mags.map(m => ({ x: m.x, y: m.y, r: m.r, code: m.code })), fixes: 0, when: cur.when }; saveMine(); }
         render();
+        if (own && shareBox.checked) sharePhoto(cur);
       }
     } catch (e) {
       warn("Could not read that photo. Try another one taken straight from above.");
@@ -803,6 +809,85 @@ function afterEdit() {
   retrace();
   if (cur.isMine && mine) { mine.mags = cur.mags.map(m => ({ x: m.x, y: m.y, r: m.r, code: m.code })); mine.fixes = cur.fixes; saveMine(); }
   render();
+  if (cur.shareId) queueFix(cur);
+}
+
+// ---------------------------------------------------------------- sharing photos with the lab (opt-in)
+// Ticked box = each photo taken here is sent (the cropped image the program analyzed, its score and
+// the magnets it found) to the lab's Google Apps Script, which files it in Drive and logs it in a Sheet.
+// Hand fixes made afterwards update the same row. Nothing is sent while the box is unticked.
+const LIBRARY_URL = "https://script.google.com/macros/s/AKfycbyPINQWkjx6jY3tqSlYQkJ2NgpAMVWumjrD5laSgMOt_V_l0a_nOtZA6r_wQy3ONKQ9/exec";
+const LIBRARY_KEY = "popalab-magnets-2026";   // filters random junk; not a password
+const PAGE_VERSION = "2026-09-25";
+const shareBox = document.getElementById("share");
+try { shareBox.checked = localStorage.getItem("mfs-share") === "1"; } catch { /* default: not shared */ }
+shareBox.addEventListener("change", () => {
+  try { localStorage.setItem("mfs-share", shareBox.checked ? "1" : "0"); } catch { /* not remembered */ }
+  if (shareBox.checked && cur && cur.own) sharePhoto(cur);
+});
+
+function newId() { return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+async function postLibrary(payload) {
+  const r = await fetch(LIBRARY_URL, { method: "POST", body: JSON.stringify(payload) });   // plain text body: no CORS preflight
+  const res = await r.json();
+  if (!res.ok) throw new Error(res.error || "not saved");
+  return res;
+}
+
+function shareData(c) {
+  const s = scoreFold(c.mags, c.canvas.width, c.canvas.height).sum;
+  const counts = { R: 0, B: 0, P: 0, Y: 0, G: 0 }; c.mags.forEach(m => counts[m.code]++);
+  return {
+    summary: { total: +s.total.toFixed(2), n: s.n, buried: s.buried, nHyd: s.nHyd, exposed: s.exposed, nPhil: s.nPhil, salt: s.salt, like: s.like, clash: s.clash },
+    counts, mags: c.mags.map(m => ({ x: Math.round(m.x), y: Math.round(m.y), r: +m.r.toFixed(1), code: m.code })),
+  };
+}
+
+// The picture as the participant saw it (photo, water line, links, point badges) with a title bar.
+// Only possible for the fold on screen, since it copies the displayed canvas.
+function scoredImage(c) {
+  if (c !== cur || !view.width) return "";
+  const s = Math.min(1, 1000 / view.width), w = Math.round(view.width * s), h = Math.round(view.height * s);
+  const bar = Math.max(40, Math.round(w * 0.06));
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h + bar;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h + bar);
+  ctx.drawImage(view, 0, bar, w, h);
+  const sum = scoreFold(c.mags, c.canvas.width, c.canvas.height).sum;
+  const when = new Date(c.when).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const label = [`${fmt(sum.total)} points`, c.chain ? (c.chainGuess ? `probably ${c.chain}` : c.chain) : "", when, c.fixes ? `${c.fixes} hand fix${c.fixes === 1 ? "" : "es"}` : ""].filter(Boolean).join("   |   ");
+  ctx.fillStyle = "#14202a"; ctx.textBaseline = "middle";
+  ctx.font = `700 ${Math.round(bar * 0.45)}px "JetBrains Mono", ui-monospace, monospace`;
+  ctx.fillText(label, Math.round(bar * 0.3), bar / 2, w - Math.round(bar * 0.6));
+  return cv.toDataURL("image/jpeg", 0.85);
+}
+
+function setShareNote(c, text) { c.shareNote = text; if (c === cur) document.getElementById("status3").textContent = text; }
+
+async function sharePhoto(c) {
+  if (!c || !c.own || c.shareId || c.sharing) return;
+  c.sharing = true; setShareNote(c, "Sharing with the Popa Lab…");
+  const id = newId();
+  try {
+    await postLibrary({ key: LIBRARY_KEY, type: "photo", consent: true, id, when: c.when, version: PAGE_VERSION,
+      chain: c.chain ? (c.chainGuess ? "maybe " : "") + c.chain : "", image: c.canvas.toDataURL("image/jpeg", 0.85),
+      scored: scoredImage(c), ...shareData(c) });
+    c.shareId = id; setShareNote(c, "Shared with the Popa Lab. Thank you!");
+    if (c.isMine && mine) { mine.shareId = id; saveMine(); }
+    if (c.fixes) queueFix(c);
+  } catch (e) {
+    setShareNote(c, "Could not share this photo (check the internet connection). Untick and tick the box to try again.");
+  }
+  c.sharing = false;
+}
+
+function queueFix(c) {
+  clearTimeout(c.fixTimer);
+  c.fixTimer = setTimeout(() => {
+    postLibrary({ key: LIBRARY_KEY, type: "fix", id: c.shareId, fixes: c.fixes, chain: c.chain ? (c.chainGuess ? "maybe " : "") + c.chain : "",
+      scored: scoredImage(c), ...shareData(c) }).catch(() => { /* the photo is saved; only the fix is lost */ });
+  }, 4000);
 }
 view.addEventListener("click", e => {
   if (!cur) return;
